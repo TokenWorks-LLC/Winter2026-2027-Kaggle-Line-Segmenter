@@ -10,6 +10,8 @@ and the Heidelberg summaries) and the stored predictions, so the figures always 
   models_by_script.png      Dencker line network, Kraken (retrained) and the default line model: one panel per metric (recall,
                             precision, first line), grouped bars per script and for the Heidelberg hand-drawn lines
   models_examples.jpg       the same test faces read by the three models
+  runs_average.png          only with --face --average: every run's test-set averages beside that face as an example
+  runs_on_<face>.png        only with --face: the default model's lines on that face beside every run's numbers for it
 Example faces are drawn at random (seeded) from test faces with annotation coverage >= 0.9 and 6 to 16 lines (>= 0.8 and
 4 to 25 lines where a script has none), not picked by hand.
 """
@@ -261,6 +263,101 @@ def truth_ebl(face):
     return read_segs(os.path.join(EBL, 'faces', 'lines', face + '.csv'))
 
 
+RUN_LIST = [('run 1', 'run1'), ('run 2', 'run2'), ('run 3, seed 0', 'run3_full_s0'), ('run 3, seed 1', 'run3_full_s1'), ('run 4, seed 0', 'run4_s0'),
+            ('run 4, seed 1', 'run4_s1'), ('run 5, seed 0', 'run5_s0'), ('run 6, seed 0', 'run6_heights_s0'), ('run 6, seed 1', 'run6_heights_s1'), ('run 7, seed 1', 'run7_heights_s1')]
+
+
+def pick_runs(keep):
+    """(runs to draw, labels left out); the default run always stays because it is the one drawn on the photograph."""
+    left_out = [label for label, run in RUN_LIST if keep and run not in keep and run != DEFAULT_RUN]
+    return [(label, run) for label, run in RUN_LIST if label not in left_out], left_out
+
+
+def face_overlay(face):
+    """The face with its annotated lines (green) and the default model's lines (red)."""
+    img = cv2.imread(os.path.join(EBL, 'faces', face + '.jpg')); lw = max(3, img.shape[0] // 220)
+    for t in truth_ebl(face): cv2.polylines(img, [np.round(t).astype(np.int32)], False, (60, 200, 60), lw * 2)
+    for q in read_segs(f'{CMP}/{DEFAULT_RUN}/unet_segments/{face}.csv'): cv2.polylines(img, [np.round(q).astype(np.int32)], False, (40, 40, 230), lw)
+    return img
+
+
+def bars_beside_face(path, title, img_title, vis, rows, panels, note):
+    """A photograph on the left, then one horizontal-bar panel per metric. rows: [{label, run, <metric>: value}];
+    panels: [(key, name, description, value format, axis maximum or None)]."""
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 10, 'text.color': TXT})
+    fig = plt.figure(figsize=(18, max(0.42 * len(rows) + 3.0, 6.2)), facecolor=SURF)
+    gs = fig.add_gridspec(1, len(panels) + 2, width_ratios=[2.3, 0.75] + [1] * len(panels), wspace=0.16, left=0.01, right=0.985, top=0.84, bottom=0.12)   # column 1 is room for the run labels
+    ax = fig.add_subplot(gs[0]); ax.imshow(cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)); ax.axis('off')
+    ax.set_title(img_title, loc='left', fontsize=11.5, fontweight='bold', color=TXT, pad=18)
+    ax.text(0, 1.02, 'green = annotated lines, red = predicted lines', transform=ax.transAxes, fontsize=9, color=TXT2)
+    y = np.arange(len(rows))[::-1]
+    for k, (key, name, desc, fmt, top) in enumerate(panels):
+        ax = fig.add_subplot(gs[k + 2]); ax.set_facecolor(SURF)
+        vals = [r[key] for r in rows]; hi = top or max(max(vals) * 1.0, 1e-6)
+        ax.barh(y, vals, height=0.62, color=['#2a78d6' if r['run'] == DEFAULT_RUN else '#9ec5f4' for r in rows], zorder=2)
+        for yy, v in zip(y, vals):
+            ax.text(v + hi * 0.03, yy, fmt.format(v), va='center', ha='left', fontsize=8.5, color=TXT)
+        ax.set_xlim(0, hi * 1.28); ax.set_ylim(-0.6, len(rows) - 0.4); ax.set_xticks([])
+        for sp in ('top', 'right', 'bottom'): ax.spines[sp].set_visible(False)
+        ax.spines['left'].set_color(BASE); ax.tick_params(length=0, colors=TXT2)
+        ax.set_yticks(y); ax.set_yticklabels([r['label'] for r in rows] if k == 0 else [], fontsize=9.5, color=TXT2)
+        ax.set_title(name, loc='left', fontsize=11.5, fontweight='bold', color=TXT, pad=18)
+        ax.text(0, 1.02, desc, transform=ax.transAxes, fontsize=8.5, color=TXT2)
+    fig.suptitle(title, x=0.01, ha='left', fontsize=14, fontweight='bold', color=TXT, y=0.985)
+    fig.text(0.01, 0.015, note, fontsize=8, color=MUTED, va='bottom')
+    fig.savefig(path, dpi=150, facecolor=SURF); plt.close(fig); print('->', path)
+
+
+def face_runs(out, face, keep=None):
+    """One face: the default model's lines on the photograph (left) and every run's numbers on that face (right, horizontal bars).
+    keep: folder names of the runs to draw (default all); the note under the figure names the ones left out."""
+    runs, left_out = pick_runs(keep)
+    truth = truth_ebl(face); mids = np.array([t.mean(0) for t in truth])
+    d = truth[0][1] - truth[0][0]; nrm = np.array([-d[1], d[0]]) / np.hypot(*d)
+    pitch = float(np.median(np.abs(np.diff(np.sort(mids @ nrm)))))
+    rows = []
+    for label, run in runs:
+        e = read_eval(f'{CMP}/{run}/evaluation.csv'); e = e[(e.face == face) & (e.method == 'unet')]
+        if e.empty: continue
+        e = e.iloc[0]; pred = read_segs(f'{CMP}/{run}/unet_segments/{face}.csv')
+        off = []                                                      # each truth line's distance to the nearest predicted line, in line spacings
+        for m in mids:
+            ds = []
+            for q in pred:
+                v = q[1] - q[0]; n = np.array([-v[1], v[0]]) / np.hypot(*v); ds.append(abs(float((m - q[0]) @ n)))
+            if ds: off.append(min(ds) / pitch)
+        rows.append(dict(label=label + (' (shown)' if run == DEFAULT_RUN else ''), run=run, recall=float(e.recall), precision=float(e.precision), n=int(e.n_pred),
+                         first=float(e.first_err), off=float(np.mean(off)) if off else np.nan))
+    panels = [('recall', 'Recall', 'truth lines found', '{:.0%}', 1.0), ('precision', 'Precision', 'predicted lines that are real', '{:.0%}', 1.0),
+              ('n', 'Lines found', f'the face has {len(truth)}', '{:.0f}', None), ('first', 'First-line error', 'line spacings; lower is better', '{:.2f}', None),
+              ('off', 'Mean line offset', 'line spacings; lower is better', '{:.2f}', None)]
+    note = ('Recall and precision count a line as found when it lies within 0.35 line spacing of an annotated line. First-line error: distance from the top predicted line to the first annotated line. '
+            'Mean line offset: average distance from each annotated line to the nearest predicted line.\nThe darker bar is the model drawn on the left. '
+            + (f'Not drawn: {", ".join(left_out)}. ' if left_out else '') + 'Numbers for one face only; they say nothing about the runs in general.')
+    bars_beside_face(os.path.join(out, f'runs_on_{face}.png'), f'Line model runs on one face: {face.replace("__", ", ")}', f'{next(lab for lab, run in runs if run == DEFAULT_RUN)} on the photograph',
+                     face_overlay(face), rows, panels, note)
+    return rows
+
+
+def runs_average(out, face, keep=None):
+    """Every run's average over all eBL test faces (horizontal bars), beside one example face read by the default model."""
+    runs, left_out = pick_runs(keep); rows = []
+    for label, run in runs:
+        e = read_eval(f'{CMP}/{run}/evaluation.csv'); e = e[e.method == 'unet']; fe = e.first_err.dropna()
+        rows.append(dict(label=label + (' (shown)' if run == DEFAULT_RUN else ''), run=run, n=len(e), recall=float(e.recall.mean()), precision=float(e.precision.dropna().mean()),
+                         first=float((fe < 0.5).mean()), count=float(e.count_ok.astype(str).eq('True').mean())))
+    panels = [('recall', 'Recall', 'truth lines found', '{:.0%}', 1.0), ('precision', 'Precision', 'predicted lines that are real', '{:.0%}', 1.0),
+              ('first', 'First line placed', 'faces with the top line in place', '{:.0%}', 1.0), ('count', 'Line count exact', 'faces matching the transliteration count', '{:.0%}', 1.0)]
+    ns = sorted({r['n'] for r in rows})
+    note = (f'Averages over the eBL test faces ({ns[0] if len(ns) == 1 else f"{ns[0]} to {ns[-1]}"} faces per run). Recall and precision count a line as found when it lies within 0.35 line spacing of an annotated line; '
+            'precision only on faces with >= 90% of signs annotated.\nFirst line placed: the top predicted line is within half a line spacing of the first annotated line. Line count exact: as many lines predicted as the transliteration has for that face.\n'
+            + (f'Not drawn: {", ".join(left_out)}. ' if left_out else '') + 'The photograph is one example face, not the average.')
+    bars_beside_face(os.path.join(out, 'runs_average.png'), 'Line model runs: average over all eBL test faces', f'Example output: {face.replace("__", ", ")} ({next(lab for lab, run in runs if run == DEFAULT_RUN)})',
+                     face_overlay(face), rows, panels, note)
+    return rows
+
+
 def runs_examples(out, seed):
     sets = [('run1', 'run 1'), ('run2', 'run 2'), ('run3_full_s0', 'run 3'), ('run4_s0', 'run 4'), (DEFAULT_RUN, 'run 6')]
     ev = {d: read_eval(f'{CMP}/{d}/evaluation.csv').query("method == 'unet'").set_index('face') for d, _ in sets}
@@ -319,7 +416,12 @@ def models_examples(out, seed):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--out', default='docs/line_segmentation/img'); ap.add_argument('--seed', type=int, default=3)
+    ap.add_argument('--runs', nargs='*', default=None, help='with --face: draw only these runs (folder names such as run1 run3_full_s0); default all')
+    ap.add_argument('--average', action='store_true', help='with --face: bars show each run\'s average over all test faces (runs_average.png); the face is the example image')
+    ap.add_argument('--face', default=None, help='draw only the per-face run comparison for this face, e.g. K.7917__reverse')
     a = ap.parse_args(); os.makedirs(a.out, exist_ok=True)
+    if a.face:
+        (runs_average if a.average else face_runs)(a.out, a.face, a.runs); return
     runs_by_script(a.out); training_curves(a.out); models_by_script(a.out); runs_examples(a.out, a.seed); models_examples(a.out, a.seed)
 
 
