@@ -1,0 +1,9 @@
+recall = share of truth lines matched within 0.35 pitch; precision only on faces with >=0.9 coverage
+  all faces                    unet  n= 761 recall 0.94  precision 0.91  first-line err median 0.10 pitch, <0.5: 87% (n=453)  count match 34%
+  script NA                    unet  n= 160 recall 0.90  precision 0.89  first-line err median 0.20 pitch, <0.5: 60% (n=50)  count match 10%
+  script NB                    unet  n= 183 recall 0.94  precision 0.91  first-line err median 0.12 pitch, <0.5: 83% (n=108)  count match 28%
+  script OA                    unet  n=  91 recall 0.93  precision 0.90  first-line err median 0.11 pitch, <0.5: 86% (n=72)  count match 53%
+  script OB                    unet  n= 327 recall 0.97  precision 0.91  first-line err median 0.09 pitch, <0.5: 96% (n=223)  count match 43%
+  px/line < 60                 unet  n=  12 recall 0.73  precision 0.74  first-line err median 0.75 pitch, <0.5: 40% (n=5)  count match 17%
+  px/line 60-120               unet  n= 311 recall 0.93  precision 0.90  first-line err median 0.11 pitch, <0.5: 80% (n=152)  count match 22%
+  px/line >= 120               unet  n= 438 recall 0.96  precision 0.91  first-line err median 0.10 pitch, <0.5: 92% (n=296)  count match 42%
