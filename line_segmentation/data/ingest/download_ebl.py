@@ -17,7 +17,7 @@ from line_segmentation.paths import EBL
 import argparse, json, csv, os, sys, time, collections, urllib.parse, urllib.request, urllib.error
 API = 'https://www.ebl.lmu.de/api/fragments/'
 OUT = EBL
-HEADERS = {'User-Agent': 'ProtoSnap-research (contact: edwardxuming.lin@gmail.com)'}
+HEADERS = {'User-Agent': 'ProtoSnap-kaggle-participant'}
 
 def get(url, binary=False, tries=3):
     for i in range(tries):

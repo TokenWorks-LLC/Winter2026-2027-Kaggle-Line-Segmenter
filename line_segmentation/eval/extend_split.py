@@ -21,9 +21,13 @@ import os
 import random
 import re
 
-from line_segmentation.eval.phase5_eval import bucket
 from line_segmentation.paths import EBL
 
+
+
+def bucket(f):
+    p = float(f['pitch_px']) if f['pitch_px'] else 0
+    return f['script'] + ('/lo' if p < 60 else '/mid' if p < 120 else '/hi')
 
 def main():
     ap = argparse.ArgumentParser()

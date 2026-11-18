@@ -12,12 +12,17 @@ For a folder of images, with every image treated as one tablet side:
 .venv/bin/python -m line_segmentation.segment.segment_images --images <folder> --out <output folder> --overlays 20
 ```
 
-For a CSV that lists the images, such as the `sides.csv` of the Ur III request:
+For a CSV that lists the images, with an id column and a file column:
 
 ```
 .venv/bin/python -m line_segmentation.segment.segment_images \
-    --list tablet_data/nathan_urIII_data/to_eddie_list_only/sides.csv --id-col side_id --file-col file \
-    --out tablet_data/nathan_urIII_data/segmentation_run6 --overlays 232 --crops
+    --list <images.csv> --id-col side_id --file-col file --out <output folder> --overlays 20 --crops
+```
+
+To try it on the example photographs in this repository:
+
+```
+.venv/bin/python -m line_segmentation.segment.segment_images --images examples/images --out output/example --crops --overlays 5
 ```
 
 In `--list` mode, paths in `--file-col` are relative to the CSV's folder unless `--root` says otherwise. In `--images`
@@ -33,14 +38,14 @@ without the extension.
    applies the EXIF orientation; both are off by default.
 2. **Views** (`preprocess.find_views`). With `--views whole` (the default) each image is one side. With `--views auto` a
    photograph that shows several views of a tablet, such as a CDLI fat cross or an eBL composite, is split into one image
-   per view, using the background detection of the Line Splitter app. Each view is saved as `views/<side id>__v<k>.png`
+   per view, using the background detection in `views.py`. Each view is saved as `views/<side id>__v<k>.png`
    (largest view first, with a small margin around it) and is segmented as a side of its own. Each view also gets an
    estimated role (`preprocess.label_views`). The two largest views that are neither small (under 35 percent of the largest)
    nor elongated (sides in a ratio above 2.2) are the obverse and the reverse, the upper one being the obverse, as CDLI fat
    crosses and eBL composites lay them out. Every other view is an edge, named `edge_top`, `edge_bottom`, `edge_left` or
    `edge_right` by its place next to the obverse, or plain `edge` when it is not next to it. With `--edges skip` (the
    default), edges are saved but not segmented, because the model finds false lines on most uninscribed edges; on 30 Ur III
-   fat crosses, it put a line on 73 percent of edges, while the transliterations show writing on only 5 of 126. Use
+   CDLI fat crosses, it put a line on 73 percent of edges, while the transliterations show writing on only 5 of 126. Use
    `--edges segment` to run the model on edges as well.
 3. **Line model.** The model (`--weights`, by default `paths.LINE_WEIGHTS`, currently `run6_heights_s1`) runs on each side
    resized to 1024 pixels on the long side. The read-out (`linemodel/infer.read_lines`) uses the settings stored in the
@@ -78,13 +83,12 @@ without the extension.
 
 `trained_on` comes from `tablet_data/line_model_training_faces.csv`, which `linemodel/list_training_faces.py` writes. If
 that file is missing, run the script first; `trained_on` is otherwise marked unknown. Before sharing results on a data set,
-compare its tablets with `trained_on` by museum number and by CDLI P-number. The Ur III request was checked this way: none
-of its 118 tablets share a museum number or P-number with the 387 training tablets.
+compare its tablets with `trained_on` by museum number and by CDLI P-number, so that no test tablet was seen in training.
 
 ## What to expect on new material
 
-The model was trained on photographs of Old Babylonian, Neo-Assyrian, Neo-Babylonian and Old Assyrian tablets. On the
-Ur III MSII renderings, it finds the lines of clean, well-preserved sides well. It also reads the inscriptions of seal
+The model was trained on photographs of Old Babylonian, Neo-Assyrian, Neo-Babylonian and Old Assyrian tablets. On a set
+of 3D (MSII) renderings of Ur III tablets, it finds the lines of clean, well-preserved sides well. It also reads the inscriptions of seal
 impressions as lines, which the transliteration lists separately from the side's own lines, and it finds few lines on
 badly worn surfaces. Line counts on the Ur III sides matched the CDLI transliteration exactly on 22 percent of sides and
 within one line on 62 percent, mostly because of seal impressions and lines that run onto the edges. On CDLI fat-cross photographs

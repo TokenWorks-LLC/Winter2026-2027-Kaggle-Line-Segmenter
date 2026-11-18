@@ -1,14 +1,13 @@
+# What line_segmentation imports. Versions match the environment the run 6 model was trained and evaluated in.
+# torch wheels bundle their own CUDA runtime; a CPU-only torch also works for inference (slower).
+torch==2.2.1
+torchvision==0.17.1
+numpy==1.26.4
+opencv-python==4.8.0.76
 pillow
 pandas
 matplotlib
-tqdm
-numpy==1.26.4
-multiprocess
-scikit-learn
-torch==2.2.1
-torchvision==0.17.1
-opencv-python==4.8.0.76
-git+https://github.com/huggingface/diffusers.git@f57e7bd92c57bf59cba45496fc85ea77797bedcc
-transformers
-reportlab
-gdown
+scipy
+scikit-image
+# Only for the Kraken baseline (line_segmentation/baselines/kraken_seg.py), which runs in its own environment:
+# kraken

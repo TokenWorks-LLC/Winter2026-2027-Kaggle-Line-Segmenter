@@ -16,8 +16,38 @@ import argparse, collections, csv, os, time
 import numpy as np, cv2, torch
 from line_segmentation.linemodel.model import LineUNet
 from line_segmentation.linemodel.targets import STRIDE, height_decode
-from line_segmentation.heuristic_v1.lines_from_boxes import force_n
 
+
+
+def force_n(groups, cents, y, n, box_h=None):
+    """Used by --use-n (from the first iteration's box clustering). Reach exactly n lines. Missing lines are inserted where consecutive clusters are separated by more than
+    ~1.5 pitches (the biggest gap in pitch units is filled first, evenly), then, if still short, unusually tall
+    clusters are split. Surplus lines are removed by merging the closest pair."""
+    groups = [list(g) for g in groups]; cents = list(cents)
+    def pitch():
+        d = np.diff(cents); d = d[d > 0]
+        return float(np.median(d)) if len(d) else (1.3 * box_h if box_h else 1.0)
+    while len(groups) < n:
+        pt = pitch()
+        # 1) over-merged clusters first: a cluster spanning more than 0.8 pitch holds two lines
+        spans = [np.ptp(y[g]) if len(g) > 1 else -1 for g in groups]; k = int(np.argmax(spans))
+        if spans[k] > 0.8 * pt:
+            g = sorted(groups[k], key=lambda i: y[i]); m = len(g) // 2
+            groups[k:k + 1] = [g[:m], g[m:]]; cents[k:k + 1] = [float(np.mean(y[g[:m]])), float(np.mean(y[g[m:]]))]; continue
+        d = np.diff(cents) if len(cents) > 1 else np.array([])
+        ratio = d / pt if len(d) else np.array([])
+        # 2) then missing lines inside gaps of >= 1.5 pitch
+        if len(ratio) and ratio.max() >= 1.5:
+            k = int(np.argmax(ratio)); m = min(int(round(ratio[k])) - 1, n - len(groups))
+            new = [cents[k] + (cents[k + 1] - cents[k]) * (j + 1) / (m + 1) for j in range(m)]
+            for j, c in enumerate(new): groups.insert(k + 1 + j, []); cents.insert(k + 1 + j, c)
+            continue
+        # 3) nothing to split or fill: extend at the end with the median pitch (text continues beyond detections)
+        groups.append([]); cents.append(cents[-1] + pt)
+    while len(groups) > n:
+        d = np.diff(cents); k = int(np.argmin(d)); groups[k] += groups[k + 1]; del groups[k + 1]
+        cents[k] = float(np.mean(y[groups[k]])) if groups[k] else cents[k]; del cents[k + 1]
+    return groups, cents
 
 def load_model(weights, dev):
     sd = torch.load(weights, map_location=dev); m = LineUNet(pretrained=False, out_ch=sd['head.weight'].shape[0]); m.load_state_dict(sd); return m.to(dev).eval()

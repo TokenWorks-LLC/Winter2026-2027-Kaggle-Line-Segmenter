@@ -7,7 +7,7 @@ Usage (repo root): python -m line_segmentation.data.truth.oa_sample [--n 100] [-
 from line_segmentation.paths import OA
 import argparse, csv, os, random, collections
 import numpy as np, cv2
-from line_segmentation.heuristic_v1.profile_lines import find_lines, rotate
+from line_segmentation.data.truth.profile_lines import find_lines, rotate
 
 FACES = f'{OA}/fat-cross_processed'
 OUT = f'{OA}/ground_truth'

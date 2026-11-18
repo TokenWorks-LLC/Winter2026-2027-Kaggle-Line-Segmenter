@@ -54,9 +54,16 @@ def main():
     g.add_argument('--kernel-shrink', type=float, default=0.4, help='kernel width as a fraction of the band width')
     g.add_argument('--band-frac', type=float, default=0.7, help='maximum band width as a fraction of the block pitch')
     g.add_argument('--ignore-gap', type=float, default=1.5, help='gaps wider than this many pitches are excluded from the loss')
+    ap.add_argument('--faces-list', default=None, help="train/val faces from an earlier run's training_faces.csv (columns face, role) instead of the seeded split; reproduces that run's data exactly")
     ap.add_argument('--plot-every', type=int, default=0, help='also redraw the training graphs every N epochs while running (0 = only at the end)')
     a = ap.parse_args(); torch.manual_seed(a.seed); np.random.seed(a.seed); dev = 'cuda' if torch.cuda.is_available() else 'cpu'; os.makedirs(a.out, exist_ok=True)
     idx = build_index(min_cov=a.min_cov, include_oa=not a.no_oa, seed=a.seed, include_heidelberg=a.heidelberg, include_heights=a.heights); tr, va = idx['train'], idx['val']
+    if a.faces_list:                                       # retrain on exactly the faces (and roles) of an earlier run
+        want = {r['face']: r['role'] for r in csv.DictReader(open(a.faces_list, encoding='utf-8'))}
+        pool = {it['face']: it for it in tr + va}
+        missing = sorted(f for f in want if f not in pool)
+        if missing: raise SystemExit(f'{len(missing)} faces of {a.faces_list} are not in the data (first: {missing[:5]}); rebuild the data first')
+        tr = [pool[f] for f, r in want.items() if r == 'train']; va = [pool[f] for f, r in want.items() if r == 'val']
     if a.dry_run: tr, va = tr[:12], va[:3]
     write_faces(os.path.join(a.out, 'training_faces.csv'), tr, va)
     src = {}

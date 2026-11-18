@@ -90,9 +90,14 @@ The line frame is the face rotated with `cv2.getRotationMatrix2D((line_cx, line_
 
 ## Licence
 
-The photographs and sign annotations come from the Electronic Babylonian Library (https://www.ebl.lmu.de/), and the photographs were taken by the holding museums. British Museum images
-are licensed CC BY-NC-SA 4.0, and the licences of others vary. The sign annotations are also published as the eBL sign dataset (Lewenstein et al. 2026, https://doi.org/10.5334/johd.503; CC BY-NC 4.0).
-The set is for research use. Check the holding institution's terms before redistributing the images.
+The line images are cut from photographs shown in the Electronic Babylonian Library (eBL, https://www.ebl.lmu.de/), and the sign
+boxes are eBL's annotations. The eBL sign dataset (Lewenstein et al. 2026, https://doi.org/10.5334/johd.503; Zenodo
+https://doi.org/10.5281/zenodo.17949595) publishes the photographs of the annotated tablets, and the sign crops cut from them, under
+Creative Commons Attribution-NonCommercial 4.0 (CC BY-NC 4.0). British Museum photographs are also offered by the museum under
+CC BY-NC-SA 4.0. This set is therefore released under CC BY-NC-SA 4.0, which satisfies both: credit the eBL, the holding
+museum and this dataset, do not use it commercially, and share adaptations under the same licence. The eBL website asks
+that its images not be reproduced without consent; this release relies on the CC BY-NC 4.0 publication above. Commercial
+use needs permission from the holding museums (for the British Museum, sales@bmimages.com).
 """
 
 

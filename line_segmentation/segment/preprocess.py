@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
-from line_segmentation.app.pipeline import detect_views
+from line_segmentation.segment.views import detect_views
 
 Image.MAX_IMAGE_PIXELS = None
 BACKGROUNDS = {'black': (0, 0, 0), 'white': (255, 255, 255), 'grey': (128, 128, 128)}

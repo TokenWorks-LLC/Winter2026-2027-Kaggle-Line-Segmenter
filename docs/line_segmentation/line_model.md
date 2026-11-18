@@ -5,8 +5,10 @@ model solves, the data and ground truth behind it, the model and how its output 
 evaluated, and what it achieves against earlier runs and against other line finders. It is written for readers who
 know OCR and object detection, and terms specific to the project are defined where they first appear. The work ran
 from late September to early November 2026. The order of experiments is kept in Appendix A, and the main text is
-organised by topic. The rest of the pipeline is described in `docs/line_segmentation/v1/pipeline_overview.md`, the published
-alternatives are described in `related_work.md`, and the code is in `line_segmentation/linemodel/`.
+organised by topic. The published alternatives are described in `related_work.md`, and the code is in
+`line_segmentation/linemodel/`. This branch is cut down for the Kaggle release: the first-iteration line finder, the crop
+evaluation code, the Line Splitter app and ProtoSnap are not in it, although the report still mentions them where they
+shaped a decision. They remain on the `main` branch.
 
 ## Summary
 
@@ -82,7 +84,7 @@ flowchart LR
     S --> E[Evaluation against<br/>line truth]
 ```
 
-The design was fixed before any code was written (section 14 of `docs/line_segmentation/v1/line_cropping_plan.md`). It
+The design was fixed before any code was written (in the first iteration's plan, on the `main` branch). It
 specified a face image at 1,024 pixels on the long side, three output maps painted from the existing line truth, a
 U-Net with a pretrained ResNet-34 encoder, training on the tune half of the Phase 5 split only, and evaluation with the
 unchanged Phase 5 harness against the detector route on the same test faces.
@@ -230,7 +232,7 @@ segments in red.*
 ### 4.2 Crops
 
 Each line becomes one image, cut from the face rotated so that its lines run horizontally (`crops/make_crops.py
---bounds segments`). A crop runs from the middle of the gap to the line above to the middle of the gap to the line
+--bounds segments` on the `main` branch; in this branch `segment/segment_images.py --crops` cuts them). A crop runs from the middle of the gap to the line above to the middle of the gap to the line
 below, with half a pitch of margin beyond the line's ends. Each of the options below was tested in Appendix A.2:
 
 | option | effect | default |
@@ -262,7 +264,7 @@ share of predicted lines matched, on faces with coverage of at least 0.9 only. *
 whose top predicted line is within half a pitch of truth line 1. **Count match** is the share of faces where the
 number of lines equals the transliteration's.
 
-**Crop measures** (`eval/evaluate_crops.py`, `eval/crop_width.py`). **Kept whole on clay** is the share of fully
+**Crop measures** (`eval/evaluate_crops.py` and `eval/crop_width.py`, on the `main` branch). **Kept whole on clay** is the share of fully
 annotated lines (at least five signs) whose part on the clay lies at least 95 percent inside their crop. **Past the
 clay** is how far a crop runs beyond the tablet into the background. **Neighbour intrusion** is the share of another
 line's band inside a crop. Half or more counts as the "half of the neighbouring line" failure.
@@ -426,43 +428,35 @@ single annotated line.*
 
 ## 8. Status and how to run
 
-**Models.** `weights/linemodel/run6_heights_s1/` is the default (`paths.LINE_WEIGHTS`), and it is used by `infer.py`
-and the Line Splitter app. Also kept are the other run 6 models (A.13), `run4_s0/`, `run4_s1/`, `run5_s0/` (A.11),
-`run2/`, `run3_full_s0/` and `run3_full_s1/`. Each holds `model.pt`, `history.csv`, `config.json` and `plots/`.
-**Stored outputs.** `tablet_data/ebl_tablets/predictions/unet` and `line_crops_unet` come from the default model. They
-cover the test split (966 faces, 10,739 crops) and were cut with `--bounds segments --extend 0.2 --shift 0.06` along
-each line's tilt. `predictions/unet_n`, `line_crops_unet_n` and `line_crops_unet_rot` still come from run 1
-(Appendix A.3). Scripts that compare crops with face coordinates read each crop in its own frame
-(`crops/crop_frame.py`). `tablet_data/exports/line_crops_60_run6` holds the default's tilted crops (60 tablets, 114
-faces, 1,116 crops, 8,106 signs). `tablet_data/exports/line_crops_60` and the ProtoSnap results made from it are older
-and hold level crops, and they are still the default of the `protosnap/line_envelope_*` scripts.
-`tablet_data/exports/line_signs` holds every eBL truth line with its signs in reading order
-(`report/export_line_signs.py`). `tablet_data/exports/line_signs_std` holds the same lines with one geometry for all,
-1.4 line spacings tall and along each line's angle (`--half-height 0.7 --end-margin 0.5`), and a check against the
-default model. `tablet_data/exports/line_signs_run6` holds the default model's crops on the test faces with the signs
-inside them (`report/export_model_line_signs.py`). `ground_truth/full_line_annotations.csv` lists which tablets have
-every line annotated (`data/truth/full_line_annotations.py`). Run 2's outputs and earlier versions are in
-`tablet_data/ebl_tablets/linemodel/archive/`. **Report figures** are regenerated with
-`MPLBACKEND=Agg .venv/bin/python -m line_segmentation.report.report_figures`.
+**Model.** `weights/linemodel/run6_heights_s1/` is the default (`paths.LINE_WEIGHTS`). Its `model.pt` is published as a
+Kaggle dataset; the folder in git holds `config.json`, `history.csv`, `training_faces.csv` and `plots/`. Other runs
+(A.1 to A.13, and run 7 with Ur III faces) are on the `main` branch's machine only.
 
-**New data sets.** `line_segmentation/segment/segment_images.py` runs the default model on any folder or list of images and writes `lines.json`; `line_segmentation/segment/README.md` documents it.
+**Line dataset.** `tablet_data/exports/line_signs_std` holds every eBL truth line with its signs in reading order, with
+one geometry for all lines: 1.4 line spacings tall and along each line's angle (`report/export_line_signs.py
+--half-height 0.7 --end-margin 0.5`), with a check of each line against the default model. A sample is in
+`examples/line_signs_std_sample/`, and the full set is published on Kaggle. `ground_truth/full_line_annotations.csv`
+lists which tablets have every line annotated (`data/truth/full_line_annotations.py`).
+
+**New images.** `line_segmentation/segment/segment_images.py` runs the default model on any folder or list of images and
+writes `lines.json` and, with `--crops`, one image per line; `line_segmentation/segment/README.md` documents it.
+
+The full recipe, from download to trained model to dataset, is in the repository README. The main commands are:
 
 ```
 python -m line_segmentation.linemodel.targets --preview 12
-python -m line_segmentation.data.ingest.download_ebl --scripts OA NB --annotations-dump data/ebl/annotations_11.09.2026/annotations_11.09.2026.json
-python -m line_segmentation.data.truth.ebl_ground_truth && python -m line_segmentation.data.faces.prepare_faces ebl && python -m line_segmentation.eval.extend_split
-MPLBACKEND=Agg .venv/bin/python -m line_segmentation.linemodel.train --epochs 40 --seed 1 --heidelberg --heights --out weights/linemodel/run6_heights_s1
-.venv/bin/python -m line_segmentation.linemodel.infer --faces tablet_data/ebl_tablets/faces/faces.csv --out tablet_data/ebl_tablets/predictions --split test [--use-n]
-.venv/bin/python -m line_segmentation.eval.evaluate_lines --faces tablet_data/ebl_tablets/faces/faces.csv --pred tablet_data/ebl_tablets/predictions
-.venv/bin/python -m line_segmentation.eval.evaluate_heidelberg --weights weights/linemodel/run6_heights_s1/model.pt
-.venv/bin/python -m line_segmentation.crops.make_crops --faces tablet_data/ebl_tablets/faces/faces.csv --pred tablet_data/ebl_tablets/predictions --method unet --bounds segments --extend 0.2 --shift 0.06 --split test [--overlap 0.15] [--rotate-per-line] --out tablet_data/ebl_tablets/line_crops_unet
-.venv/bin/python -m line_segmentation.eval.evaluate_crops --faces tablet_data/ebl_tablets/faces/faces.csv --crops tablet_data/ebl_tablets/line_crops_unet/crops.csv --split test
-.venv/bin/python -m line_segmentation.report.export_tablets --zip     # 60 tablets with line crops and sign boxes, for other pipelines
+MPLBACKEND=Agg python -m line_segmentation.linemodel.train --epochs 40 --seed 1 --heidelberg --heights --faces-list weights/linemodel/run6_heights_s1/training_faces.csv --out weights/linemodel/my_run6
+python -m line_segmentation.linemodel.infer --faces tablet_data/ebl_tablets/faces/faces.csv --out tablet_data/ebl_tablets/predictions --split test
+python -m line_segmentation.eval.evaluate_lines --faces tablet_data/ebl_tablets/faces/faces.csv --pred tablet_data/ebl_tablets/predictions
+python -m line_segmentation.eval.evaluate_heidelberg --weights weights/linemodel/run6_heights_s1/model.pt
+python -m line_segmentation.linemodel.infer --faces tablet_data/ebl_tablets/faces/faces.csv --out tablet_data/ebl_tablets/linemodel/compare/run6_heights_s1_allfaces --split all
+python -m line_segmentation.report.export_line_signs --scripts NA NB OA OB --half-height 0.7 --end-margin 0.5 --model-pred tablet_data/ebl_tablets/linemodel/compare/run6_heights_s1_allfaces --out tablet_data/exports/line_signs_std
 ```
 
 ## Appendix A. Experiment log
 
-This appendix lists the experiments in the order they were run, with their full tables. Later sections supersede
+This appendix lists the experiments in the order they were run, with their full tables. It names scripts as they were
+at the time; several of them (crop evaluation, the Line Splitter, ProtoSnap, the first iteration) are only on the `main` branch. Later sections supersede
 earlier numbers where they differ. For example, run 1's first results below use the read-out of the time and only the
 NA and OB test faces that existed then, while section 6.1 scores every run with the same read-out on the full test set.
 Line scores in A.1 to A.8 are as recorded at the time, before the line spacing was corrected (A.9). Sections 1 to 8 use

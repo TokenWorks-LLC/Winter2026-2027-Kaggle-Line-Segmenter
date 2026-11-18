@@ -8,7 +8,8 @@ Writes
                              + a README + dataset-metadata.json
 Files are hard-linked when the file system allows it (no extra space), else copied; --copy always copies.
 Upload each folder with the Kaggle CLI, e.g. `kaggle datasets create -p tablet_data/kaggle/line-signs-std --dir-mode zip`.
-Check the licence fields before uploading: the images are eBL/museum photographs (British Museum CC BY-NC-SA 4.0; others vary).
+Both are released under CC BY-NC-SA 4.0: the images come from the eBL sign dataset's CC BY-NC 4.0 photographs, and British
+Museum photographs are CC BY-NC-SA 4.0 (see the README's licence section).
 """
 import argparse
 import json
