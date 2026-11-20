@@ -73,7 +73,6 @@ See [Licences and data sources](#licences-and-data-sources) for the other data.
 ## The model
 
 | | |
-|---|---|
 | architecture | U-Net, ResNet-34 encoder (ImageNet weights), input 1,024 px on the long side, 768 px training windows |
 | outputs | line kernel, line band, orientation (sin 2θ, cos 2θ) and line height (2 channels), at a quarter of the input resolution |
 | read-out | kernels are thresholded, joined to their band, fitted with a segment and extended along the band (`linemodel/infer.py:read_lines`) |
