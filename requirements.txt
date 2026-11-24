@@ -1,9 +1,9 @@
 # What line_segmentation imports. Versions match the environment the run 6 model was trained and evaluated in.
 # torch wheels bundle their own CUDA runtime; a CPU-only torch also works for inference (slower).
-torch==2.2.1
-torchvision==0.17.1
-numpy==1.26.4
-opencv-python==4.8.0.76
+torch
+torchvision
+numpy
+opencv-python
 pillow
 pandas
 matplotlib
