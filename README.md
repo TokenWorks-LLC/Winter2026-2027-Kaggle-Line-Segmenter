@@ -73,7 +73,6 @@ See [Licences and data sources](#licences-and-data-sources) for the other data.
 ## The model
 
 | | |
-|---|---|
 | architecture | U-Net, ResNet-34 encoder (ImageNet weights), input 1,024 px on the long side, 768 px training windows |
 | outputs | line kernel, line band, orientation (sin 2θ, cos 2θ) and line height (2 channels), at a quarter of the input resolution |
 | read-out | kernels are thresholded, joined to their band, fitted with a segment and extended along the band (`linemodel/infer.py:read_lines`) |
@@ -93,7 +92,7 @@ All commands run from the repository root. Data goes under `tablet_data/` (set `
 **1. Get the data.**
 
 | source | what | how |
-|---|---|---|
+| --- | --- | --- |
 | eBL | photographs, sign boxes and transliterations | `python -m line_segmentation.data.ingest.download_ebl --scripts NA OB OA NB --annotations-dump <eBL annotation export .json>` (the annotation export is the eBL sign dataset above) |
 | Heidelberg (Dencker et al. 2020) | hand-drawn Neo-Assyrian lines | `line_annotations_{train,test}.csv` and `tablet_segments_{train,test}.csv` from <https://github.com/compvis/cuneiform-sign-detection-dataset> into `data/heidelberg/`, and the Heidelberg photographs of the eBL sign-detection data (<https://zenodo.org/records/10693501>) into `data/ebl/ebl_detection_2024/`; `python -m line_segmentation.eval.evaluate_heidelberg --weights weights/linemodel/run6_heights_s1/model.pt` then cuts the face crops into `tablet_data/heidelberg/faces/` |
 | CDLI | Old Assyrian face photographs for the 93 hand-marked faces | the obverse/reverse photographs of the P-numbers in `data/fixed/oa_faces_accepted.csv` from <https://cdli.earth/>, saved as `P<number>_<side>.png` (the `file` column) in `tablet_data/fat-cross_processed/fat-cross_processed/`. CDLI's terms allow non-commercial use and do not allow republishing them, so they are not included here |
@@ -142,7 +141,7 @@ python -m line_segmentation.report.stage_kaggle --owner <kaggle user>   # upload
 ## Repository layout
 
 | path | contents |
-|---|---|
+| --- | --- |
 | `line_segmentation/linemodel/` | model, training targets, data loading, training, inference and read-out |
 | `line_segmentation/segment/` | running a finished model on any images |
 | `line_segmentation/data/` | downloads (`ingest/`), line truth (`truth/`), face cutting (`faces/`), `restore_fixed.py` |
@@ -159,7 +158,7 @@ python -m line_segmentation.report.stage_kaggle --owner <kaggle user>   # upload
 ## Licences and data sources
 
 | data | terms | in this repository or on Kaggle? |
-|---|---|---|
+| --- | --- | --- |
 | eBL photographs and sign annotations | CC BY-NC 4.0 as published in the eBL sign dataset; British Museum photographs CC BY-NC-SA 4.0 | yes: `line_signs_std`, the sample and the example images, under CC BY-NC-SA 4.0 |
 | CDLI photographs (Old Assyrian training faces) | CDLI terms of use: for non-commercial use, owned by the holding institutions, no publication without permission; no Creative Commons licence | no: only the P-numbers and the hand-marked line positions; download the photographs from CDLI |
 | Heidelberg line annotations (Dencker et al. 2020) | the GitHub repository states no licence; its photographs come from CDLI and, for seven tablets, the Vorderasiatisches Museum Berlin, for research use | no: download them from the original repositories |
