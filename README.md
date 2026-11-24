@@ -45,8 +45,8 @@ one image per line the model finds.
 
 ```bash
 pip install -r requirements.txt
-# download model.pt from the Kaggle dataset "cuneiform-line-model" and put it at:
-#   weights/linemodel/run6_heights_s1/model.pt
+pip install huggingface_hub   # provides the hf command
+hf download FactGridCuneiform/Winter2026-2027-Kaggle-Line-Segmenter run6_heights_s1/model.pt --local-dir weights/linemodel
 python -m line_segmentation.segment.segment_images --images examples/images --out output/example --crops --overlays 5
 ```
 
@@ -149,7 +149,7 @@ python -m line_segmentation.report.stage_kaggle --owner <kaggle user>   # upload
 | `line_segmentation/eval/` | line scoring, Heidelberg scoring, the split, height calibration |
 | `line_segmentation/report/` | the dataset export, Kaggle staging and the report figures |
 | `line_segmentation/baselines/` | Kraken and the Dencker et al. line network, for comparison |
-| `weights/linemodel/run6_heights_s1/` | the default model's config, training history, face list and plots (`model.pt` is on Kaggle) |
+| `weights/linemodel/run6_heights_s1/` | the default model's config, training history, face list and plots (`model.pt` is on [Hugging Face](https://huggingface.co/FactGridCuneiform/Winter2026-2027-Kaggle-Line-Segmenter)) |
 | `data/fixed/` | the split and the Old Assyrian hand labels |
 | `examples/` | example photographs and a sample of `line_signs_std` |
 | `docs/line_segmentation/` | the model report, related work and data notes |
@@ -163,7 +163,7 @@ python -m line_segmentation.report.stage_kaggle --owner <kaggle user>   # upload
 | eBL photographs and sign annotations | CC BY-NC 4.0 as published in the eBL sign dataset; British Museum photographs CC BY-NC-SA 4.0 | yes: `line_signs_std`, the sample and the example images, under CC BY-NC-SA 4.0 |
 | CDLI photographs (Old Assyrian training faces) | CDLI terms of use: for non-commercial use, owned by the holding institutions, no publication without permission; no Creative Commons licence | no: only the P-numbers and the hand-marked line positions; download the photographs from CDLI |
 | Heidelberg line annotations (Dencker et al. 2020) | the GitHub repository states no licence; its photographs come from CDLI and, for seven tablets, the Vorderasiatisches Museum Berlin, for research use | no: download them from the original repositories |
-| model weights | trained on the data above | yes, on Kaggle, under CC BY-NC-SA 4.0 |
+| model weights | trained on the data above | yes, on Hugging Face, under CC BY-NC-SA 4.0 |
 | code | no licence file yet | this repository |
 
 This summary is not legal advice; check each source's terms before reuse.

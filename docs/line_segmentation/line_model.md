@@ -428,8 +428,8 @@ single annotated line.*
 
 ## 8. Status and how to run
 
-**Model.** `weights/linemodel/run6_heights_s1/` is the default (`paths.LINE_WEIGHTS`). Its `model.pt` is published as a
-Kaggle dataset; the folder in git holds `config.json`, `history.csv`, `training_faces.csv` and `plots/`. Other runs
+**Model.** `weights/linemodel/run6_heights_s1/` is the default (`paths.LINE_WEIGHTS`). Its `model.pt` is published on Hugging Face
+(`FactGridCuneiform/Winter2026-2027-Kaggle-Line-Segmenter`, file `run6_heights_s1/model.pt`); the folder in git holds `config.json`, `history.csv`, `training_faces.csv` and `plots/`. Other runs
 (A.1 to A.13, and run 7 with Ur III faces) are on the `main` branch's machine only.
 
 **Line dataset.** `tablet_data/exports/line_signs_std` holds every eBL truth line with its signs in reading order, with
