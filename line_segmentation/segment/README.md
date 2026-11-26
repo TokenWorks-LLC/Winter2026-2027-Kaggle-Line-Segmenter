@@ -38,12 +38,21 @@ without the extension.
    applies the EXIF orientation; both are off by default.
 2. **Views** (`preprocess.find_views`). With `--views whole` (the default) each image is one side. With `--views auto` a
    photograph that shows several views of a tablet, such as a CDLI fat cross or an eBL composite, is split into one image
-   per view, using the background detection in `views.py`. Each view is saved as `views/<side id>__v<k>.png`
+   per view, using the background detection in `views.py`. On a dark background, tablet material is whatever is brighter
+   than the cloth. On a white or light grey background, a pixel counts as tablet when its colour differs from the paper's,
+   when it is much darker than the paper at that point, or when it is somewhat darker and textured. The paper's brightness
+   is modelled as a smooth surface, so uneven lighting and soft drop shadows do not join neighbouring views into one; with a
+   plain brightness threshold they did. Each view is saved as `views/<side id>__v<k>.png`
    (largest view first, with a small margin around it) and is segmented as a side of its own. Each view also gets an
-   estimated role (`preprocess.label_views`). The two largest views that are neither small (under 35 percent of the largest)
-   nor elongated (sides in a ratio above 2.2) are the obverse and the reverse, the upper one being the obverse, as CDLI fat
-   crosses and eBL composites lay them out. Every other view is an edge, named `edge_top`, `edge_bottom`, `edge_left` or
-   `edge_right` by its place next to the obverse, or plain `edge` when it is not next to it. With `--edges skip` (the
+   estimated role (`preprocess.label_views`). Scale bars and label cards become `other`, saved but never segmented: a view
+   is `other` when it is far less tinted than the photo's tablet views (under a quarter of the most tinted view at least a
+   quarter the size of the largest) and under 30 percent of it is mid-tone (print on card stock, not clay). The tint is
+   compared within one photo, so on a photo whose tablets are all grey nothing is set aside. Of the remaining views, the
+   two largest that are neither small (under 35 percent of the largest) nor elongated (sides in a ratio above 2.2) are the
+   obverse and the reverse, the upper one being the obverse, as CDLI fat crosses and eBL composites lay them out. When no
+   view qualifies, as on a photo of one long fragment, the most tinted view is the obverse. Every other view is an edge,
+   named `edge_top`, `edge_bottom`, `edge_left` or `edge_right` by its place next to the obverse, or plain `edge` when it is
+   not next to it. With `--edges skip` (the
    default), edges are saved but not segmented, because the model finds false lines on most uninscribed edges; on 30 Ur III
    CDLI fat crosses, it put a line on 73 percent of edges, while the transliterations show writing on only 5 of 126. Use
    `--edges segment` to run the model on edges as well.
@@ -94,4 +103,12 @@ badly worn surfaces. Line counts on the Ur III sides matched the CDLI transliter
 within one line on 62 percent, mostly because of seal impressions and lines that run onto the edges. On CDLI fat-cross photographs
 with `--views auto --edges segment`, the model also finds one or two false lines on most uninscribed edges; segmenting edges
 at the obverse's scale instead of enlarging them did not prevent this. Roles are estimates from the layout, and other parts
-of a photograph, such as a museum logo, can be detected as views and labelled `edge`. Check the overlays before relying on a new data set.
+of a photograph, such as a museum logo, can be detected as views and labelled `edge`. Views that touch or nearly touch in the
+photograph (gaps of a few pixels) can come out as one view, more often on light backgrounds than on dark ones. On 263 Middle
+Assyrian fragment photographs (one fragment, a scale bar and a label card on white or light grey paper), `--views auto` gave
+every photograph an obverse on the fragment; before scale bars were set aside and long fragments allowed as the obverse,
+50 of them had none. Check the overlays before relying on a new data set.
+
+On light backgrounds the model itself needs no special treatment: on 120 eBL test faces moved from black cloth onto a synthetic
+light grey background with uneven lighting and drop shadows, recall fell from 0.94 to 0.92 and precision from 0.89 to 0.88.
+Painting the background black before running the model did not help (recall 0.88), so the pipeline leaves the image as it is.

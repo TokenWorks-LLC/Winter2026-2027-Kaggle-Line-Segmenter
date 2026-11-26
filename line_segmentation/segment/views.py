@@ -1,7 +1,8 @@
 """Find tablet views in a photograph without annotations (moved from the old Line Splitter app).
 
-The photo is thresholded against its background, connected bright regions are split at empty gaps, and every region
-large enough to be a tablet face is offered as a view.
+Tablet material is separated from the background (prepare_faces.tablet_components: a brightness threshold on dark cloth,
+light_foreground on white or grey paper, which ignores uneven lighting and soft shadows), connected regions are split at
+empty gaps, and every region large enough to be a tablet face is offered as a view.
 """
 import cv2
 import numpy as np
@@ -49,7 +50,7 @@ def detect_views(img_bgr, min_frac=0.01):
     H, W = img_bgr.shape[:2]
     pil = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
     scale = max(2, int(round(max(W, H) / 1200)))
-    comps, _lab, _ = tablet_components(pil, scale=scale)
+    comps, _lab, _ = tablet_components(pil, scale=scale, robust_light=True)
     mask = tablet_components.mask
     views = []
     for _i, box, _a in comps:

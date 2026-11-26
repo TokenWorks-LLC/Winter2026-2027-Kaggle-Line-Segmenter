@@ -1,6 +1,7 @@
 .DS_Store
 .venv
 __pycache__/
+savio
 
 # Model weights stay out of git (published on Kaggle). The default run's small files are tracked.
 weights/*
@@ -15,6 +16,7 @@ data/ebl/*
 !data/ebl/signs_snippets_metadata.json
 data/fonts/
 data/heidelberg/
+data/Test Files
 external/
 
 # Working data, predictions and exports. A sample of the line dataset is in examples/; the full set is on Kaggle.

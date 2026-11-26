@@ -6,9 +6,9 @@
 Steps (documented in line_segmentation/segment/README.md):
   1. Preprocess each image (segment/preprocess.py): 8-bit BGR, alpha flattened onto --background, optional CLAHE.
   2. Optionally split a photograph into tablet views (--views auto): each view is saved as its own image under views/ and
-     becomes a side, with coordinates in that view image. Each view gets an estimated role (obverse, reverse, edge_top, ...).
-     --edges decides what happens to edges: 'skip' (default) saves them without lines, and 'segment' runs the model on them
-     like faces. By default the whole image is one side.
+     becomes a side, with coordinates in that view image. Each view gets an estimated role (obverse, reverse, edge_top, ...,
+     or other for scale bars and label cards, which are saved but never segmented). --edges decides what happens to edges:
+     'skip' (default) saves them without lines, and 'segment' runs the model on them like faces. By default the whole image is one side.
   3. Run the line model (--weights, default paths.LINE_WEIGHTS) and its read-out (linemodel/infer.py) with the settings stored
      in the run's config.json.
   4. Turn each predicted line into a region: the line's band between its neighbours, extended by --extend line spacings and
@@ -148,7 +148,7 @@ def main():
                 vfile = f'views/{vid}.png'; cv2.imwrite(os.path.join(a.out, vfile), face); ox, oy, IW, IH = 0, 0, face.shape[1], face.shape[0]
             else:
                 ox, oy, IW, IH = x0, y0, W, H
-            role = v.get('role', 'whole'); edge = role.startswith('edge'); skipped = edge and a.edges == 'skip'
+            role = v.get('role', 'whole'); edge = role.startswith('edge'); skipped = role == 'other' or (edge and a.edges == 'skip')
             if skipped:
                 segs = []
             else:
@@ -171,7 +171,7 @@ def main():
             entry = dict(side_id=vid, width=IW, height=IH, lines=lines)
             if not whole:
                 entry.update(image=vfile, role=role, source_image=sid, source_file=path, view_box=[x0, y0, x1, y1])
-                if skipped: entry['skipped'] = 'edge (see --edges)'
+                if skipped: entry['skipped'] = 'not a tablet view (scale bar, label)' if role == 'other' else 'edge (see --edges)'
             sides.append(entry)
             summary.append(dict(side_id=vid, view=v['id'], role=role, skipped=bool(skipped), n_lines=len(lines), mean_score=round(float(np.mean([l['score'] for l in lines])), 3) if lines else '',
                                 seconds=round(time.time() - t0, 2), notes='; '.join(notes)))

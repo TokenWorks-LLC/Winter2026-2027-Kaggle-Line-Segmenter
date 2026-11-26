@@ -34,10 +34,41 @@ def atf_lines_per_side(atf):
     return out
 
 
-def tablet_components(im, scale=6, min_area_frac=0.002):
+def light_foreground(rgb, chroma_thr=9.0, dark_frac=0.30, soft_dark=18.0, tex_thr=5.0):
+    """Tablet material (bool mask) on a light background that may be unevenly lit and carry soft shadows.
+    A pixel is tablet if its colour differs from the paper's (paper and shadows on it are neutral relative to the paper,
+    clay is tinted), or it is much darker than the paper at that point (by dark_frac of its brightness), or it is
+    somewhat darker (soft_dark) and textured (wedges and cracks; shadows are smooth). The paper's brightness is a
+    quadratic surface fitted to likely-paper pixels, so light falloff across the frame is not taken for tablet.
+    The paper colour comes from the brightest 40% of the border, so a tablet touching the frame does not set it."""
+    import cv2
+    h, w = rgb.shape[:2]
+    lab = cv2.cvtColor(cv2.GaussianBlur(rgb, (0, 0), 1.0), cv2.COLOR_RGB2LAB).astype(np.float32)
+    L, ab = lab[..., 0], lab[..., 1:]
+    b = max(2, int(0.01 * max(h, w)))
+    edge = np.concatenate([lab[:b].reshape(-1, 3), lab[-b:].reshape(-1, 3), lab[:, :b].reshape(-1, 3), lab[:, -b:].reshape(-1, 3)])
+    bg = np.median(edge[edge[:, 0] >= np.percentile(edge[:, 0], 60)], axis=0)
+    dc = np.linalg.norm(ab - bg[1:], axis=2)
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32); xx /= w; yy /= h
+    A = np.stack([np.ones_like(xx), xx, yy, xx * xx, yy * yy, xx * yy], -1).reshape(-1, 6)
+    paper = (dc < chroma_thr) & (L > bg[0] - 30); surf = np.full((h, w), bg[0], np.float32)
+    for _ in range(2):                                       # fit, then refit on pixels close to the first surface
+        if paper.sum() < 50: break
+        coef, *_ = np.linalg.lstsq(A[paper.ravel()], L.ravel()[paper.ravel()], rcond=None); surf = (A @ coef).reshape(h, w)
+        paper = (dc < chroma_thr) & (np.abs(L - surf) < 15)
+    dL = surf - L
+    k = max(3, int(0.006 * max(h, w)) | 1)
+    mu = cv2.blur(L, (k, k)); tex = np.sqrt(np.maximum(0, cv2.blur(L * L, (k, k)) - mu * mu))
+    return (dc > chroma_thr) | (dL > dark_frac * surf) | ((dL > soft_dark) & (tex > tex_thr))
+
+
+def tablet_components(im, scale=6, min_area_frac=0.002, robust_light=False):
     """Segment bright tablet material from the dark studio background.
     Returns a list of component boxes (x0, y0, x1, y1) in full-image pixels, largest first, plus the label
-    image and scale so callers can test which component contains a point."""
+    image and scale so callers can test which component contains a point.
+    robust_light: on a light background use light_foreground (colour, local paper level, texture) instead of a plain
+    brightness threshold, which lets drop shadows and light falloff join neighbouring views into one component. Off by
+    default so the eBL face crops (and the dataset built from them) stay reproducible; segment/views.py turns it on."""
     import cv2
     W, H = im.size
     small = np.asarray(im.convert('L').resize((max(1, W // scale), max(1, H // scale)), Image.BILINEAR))
@@ -48,6 +79,9 @@ def tablet_components(im, scale=6, min_area_frac=0.002):
     if bg < 128:                                             # dark background: tablet is the bright material
         thr = min(60, int(otsu)) if otsu else 40             # never above 60 so shadows on the tablet stay inside
         bw = (blur > thr).astype(np.uint8) * 255
+    elif robust_light:
+        rgb = np.asarray(im.convert('RGB').resize((max(1, W // scale), max(1, H // scale)), Image.BILINEAR))
+        bw = light_foreground(rgb).astype(np.uint8) * 255
     else:                                                    # light background: tablet is darker than the paper
         thr = max(int(otsu), int(bg) - 25)
         bw = (blur < thr).astype(np.uint8) * 255
