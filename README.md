@@ -73,6 +73,7 @@ See [Licences and data sources](#licences-and-data-sources) for the other data.
 ## The model
 
 | | |
+| --- | --- |
 | architecture | U-Net, ResNet-34 encoder (ImageNet weights), input 1,024 px on the long side, 768 px training windows |
 | outputs | line kernel, line band, orientation (sin 2θ, cos 2θ) and line height (2 channels), at a quarter of the input resolution |
 | read-out | kernels are thresholded, joined to their band, fitted with a segment and extended along the band (`linemodel/infer.py:read_lines`) |
@@ -163,7 +164,7 @@ python -m line_segmentation.report.stage_kaggle --owner <kaggle user>   # upload
 | CDLI photographs (Old Assyrian training faces) | CDLI terms of use: for non-commercial use, owned by the holding institutions, no publication without permission; no Creative Commons licence | no: only the P-numbers and the hand-marked line positions; download the photographs from CDLI |
 | Heidelberg line annotations (Dencker et al. 2020) | the GitHub repository states no licence; its photographs come from CDLI and, for seven tablets, the Vorderasiatisches Museum Berlin, for research use | no: download them from the original repositories |
 | model weights | trained on the data above | yes, on Hugging Face, under CC BY-NC-SA 4.0 |
-| code | no licence file yet | this repository |
+| code | MIT Licence | this repository |
 
 This summary is not legal advice; check each source's terms before reuse.
 
