@@ -59,6 +59,15 @@ without the extension.
 3. **Line model.** The model (`--weights`, by default `paths.LINE_WEIGHTS`, currently `run6_heights_s1`) runs on each side
    resized to 1024 pixels on the long side. The read-out (`linemodel/infer.read_lines`) uses the settings stored in the
    run's `config.json`; every setting can be overridden with options such as `--kernel-thr`.
+   **Orientation.** The model only finds lines that run roughly across the image, so a side photographed on its side
+   (text lines running up and down) gets a few false, low-scoring lines. With `--orient auto`, the model also runs on each
+   side turned 90 degrees clockwise and anticlockwise, and a turn is kept when its mean line score beats the unturned
+   side's by more than `--orient-margin` (0.03). Coordinates are still written in the pixels of the image as provided;
+   the line order and crops follow the turned side, so line 1 is the top line of the text as read. `lines.json` records
+   `rotation_deg` and `orient_gap` (best turned score minus unturned score) for each side, and `summary.csv` has both as
+   columns. On 298 Old Assyrian obverses and reverses, 131 were turned; on a sideways side the turn raised the mean
+   score from about 0.57 to 0.72–0.78. Sides with a gap near the margin are close calls worth checking in the overlays.
+   It cannot tell upright from upside down (both give level lines), and it triples the model's running time.
 4. **Line regions.** Each predicted line becomes a four-cornered region. Its top and bottom are the middle of the gaps to
    the neighbouring lines, extended by `--extend` line spacings (0.2) and moved down by `--shift` spacings (0.06), the crop
    rule calibrated on eBL faces. The region runs `--end-margin` spacings (0.5) past the line's ends and follows the line's
@@ -82,7 +91,7 @@ without the extension.
     line), `polygon` (four corners, clockwise from the top left of the line), `bbox` (`[x0, y0, x1, y1]`, clipped to the
     image), `score` (the mean kernel probability, between 0 and 1), `baseline` (the predicted centre line's two ends) and
     `angle_deg`. With `--crops`, each line also names its crop image.
-- `summary.csv` has one row per side, with the number of lines, the mean score, the time taken and the preprocessing notes.
+- `summary.csv` has one row per side, with the turn applied and its score gap (with `--orient auto`), the number of lines, the mean score, the time taken and the preprocessing notes.
 - `overlays/<side>.jpg` (with `--overlays N`) draws the regions in orange, the centre lines in red, and each line's order
   and score on the first N images.
 - `crops/<side>__L<nn>.jpg` (with `--crops`) holds one image per line, cut along the line's own angle.

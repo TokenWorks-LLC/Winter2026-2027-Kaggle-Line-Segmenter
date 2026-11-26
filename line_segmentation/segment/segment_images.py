@@ -11,6 +11,8 @@ Steps (documented in line_segmentation/segment/README.md):
      'skip' (default) saves them without lines, and 'segment' runs the model on them like faces. By default the whole image is one side.
   3. Run the line model (--weights, default paths.LINE_WEIGHTS) and its read-out (linemodel/infer.py) with the settings stored
      in the run's config.json.
+     With --orient auto the side is also tried turned 90 degrees each way, and the turn with the best mean line score is
+     kept if it beats the unturned side by more than --orient-margin; coordinates are mapped back to the unturned image.
   4. Turn each predicted line into a region: the line's band between its neighbours, extended by --extend line spacings and
      moved down by --shift spacings (the calibrated crop rule of make_crops.py), along the line's own angle when that is
      within --max-line-dev degrees of the face's, and running --end-margin spacings past the line's ends.
@@ -39,6 +41,7 @@ from line_segmentation.paths import DATA_ROOT, LINE_WEIGHTS
 from line_segmentation.segment.preprocess import BACKGROUNDS, find_views, load_image
 
 IMAGE_EXT = ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp', '.webp')
+ROTATIONS = {90: cv2.ROTATE_90_CLOCKWISE, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}
 READOUT_KEYS = dict(kernel_thr=0.5, band_thr=0.4, min_area=12, max_reach=1.5, max_dev=45.0, merge_dy=0.5, end_thr=0.2, max_ext=3.0)
 
 
@@ -76,6 +79,26 @@ def line_regions(segs, W, H, extend, shift, end_margin, max_line_dev):
         poly = (np.array([[x0, y0, 1], [x1, y0, 1], [x1, y1, 1], [x0, y1, 1]], float) @ Mi.T)
         out.append(dict(seg=s, poly=poly, angle=use, frame=(M, x0, y0, x1, y1), pitch=pitch))
     return out
+
+
+def unrotate(pts, rot, W, H):
+    """Points (N, 2) in a face rotated by rot degrees clockwise (cv2.rotate) -> the unrotated face of size W x H."""
+    pts = np.asarray(pts, float)
+    if rot == 90:
+        return np.stack([pts[:, 1], H - pts[:, 0]], axis=1)
+    if rot == 270:
+        return np.stack([W - pts[:, 1], pts[:, 0]], axis=1)
+    return pts
+
+
+def segment_face(model, face, dev, ro):
+    maps, s = predict_face(model, face, dev)
+    tab = tablet_mask_for(face, maps.shape, s)
+    return read_lines(maps, s, ro['kernel_thr'], ro['band_thr'], int(ro['min_area']), ro['max_reach'], ro['max_dev'], ro['merge_dy'], ro['end_thr'], ro['max_ext'], tab)
+
+
+def mean_score(segs):
+    return float(np.mean([g['score'] for g in segs])) if segs else 0.0
 
 
 def git_version():
@@ -124,6 +147,8 @@ def main():
     ap.add_argument('--background', choices=sorted(BACKGROUNDS), default='black'); ap.add_argument('--clahe', action='store_true'); ap.add_argument('--exif', action='store_true')
     ap.add_argument('--extend', type=float, default=0.2); ap.add_argument('--shift', type=float, default=0.06); ap.add_argument('--end-margin', type=float, default=0.5)
     ap.add_argument('--max-line-dev', type=float, default=20.0)
+    ap.add_argument('--orient', choices=['none', 'auto'], default='none', help='auto also runs the model on each side turned 90 degrees either way and keeps the turn with the highest mean line score')
+    ap.add_argument('--orient-margin', type=float, default=0.03, help='with --orient auto: a turn is kept only if its mean score beats the unturned one by more than this')
     for k in READOUT_KEYS: ap.add_argument('--' + k.replace('_', '-'), type=float, default=None, help=f'read-out override (default: the run\'s config.json, else {READOUT_KEYS[k]})')
     ap.add_argument('--crops', action='store_true', help='also write one image per line, cut along the line'); ap.add_argument('--overlays', type=int, default=0, help='draw the lines on the first N images')
     ap.add_argument('--training-faces', default=os.path.join(DATA_ROOT, 'line_model_training_faces.csv'), help='linemodel/list_training_faces.py output, for trained_on')
@@ -149,31 +174,35 @@ def main():
             else:
                 ox, oy, IW, IH = x0, y0, W, H
             role = v.get('role', 'whole'); edge = role.startswith('edge'); skipped = role == 'other' or (edge and a.edges == 'skip')
-            if skipped:
-                segs = []
-            else:
-                maps, s = predict_face(model, face, dev)
-                tab = tablet_mask_for(face, maps.shape, s)
-                segs = read_lines(maps, s, readout['kernel_thr'], readout['band_thr'], int(readout['min_area']), readout['max_reach'], readout['max_dev'],
-                                  readout['merge_dy'], readout['end_thr'], readout['max_ext'], tab)
-            regs = line_regions(segs, face.shape[1], face.shape[0], a.extend, a.shift, a.end_margin, a.max_line_dev); lines = []
+            rot, gap, segs = 0, None, []
+            if not skipped:
+                segs = segment_face(model, face, dev, readout)
+                if a.orient == 'auto':                                  # try the side turned both ways; keep a turn only if clearly better
+                    turned = {r: segment_face(model, cv2.rotate(face, ROTATIONS[r]), dev, readout) for r in ROTATIONS}
+                    best = max(turned, key=lambda r: mean_score(turned[r])); gap = mean_score(turned[best]) - mean_score(segs)
+                    if gap > a.orient_margin: rot, segs = best, turned[best]
+            work = face if rot == 0 else cv2.rotate(face, ROTATIONS[rot]); FW, FH = face.shape[1], face.shape[0]
+            regs = line_regions(segs, work.shape[1], work.shape[0], a.extend, a.shift, a.end_margin, a.max_line_dev); lines = []
             for i, r in enumerate(regs, 1):
-                poly = r['poly'] + [ox, oy]; sg = r['seg']
+                sg = r['seg']; poly = unrotate(r['poly'], rot, FW, FH) + [ox, oy]
+                b0, b1 = unrotate([[sg['ax0'], sg['ay0']], [sg['ax1'], sg['ay1']]], rot, FW, FH) + [ox, oy]
+                ang = (float(r['angle']) + {0: 0, 90: -90, 270: 90}[rot] + 180) % 360 - 180
                 bb = [max(0.0, poly[:, 0].min()), max(0.0, poly[:, 1].min()), min(float(IW), poly[:, 0].max()), min(float(IH), poly[:, 1].max())]
                 ln = dict(order=i, polygon=[[round(float(px), 1), round(float(py), 1)] for px, py in poly], bbox=[round(float(c), 1) for c in bb],
-                          score=round(float(sg['score']), 4), baseline=[[round(sg['ax0'] + ox, 1), round(sg['ay0'] + oy, 1)], [round(sg['ax1'] + ox, 1), round(sg['ay1'] + oy, 1)]],
-                          angle_deg=round(float(r['angle']), 2))
+                          score=round(float(sg['score']), 4), baseline=[[round(float(b0[0]), 1), round(float(b0[1]), 1)], [round(float(b1[0]), 1), round(float(b1[1]), 1)]],
+                          angle_deg=round(ang, 2))
                 if a.crops:
-                    M, cx0, cy0, cx1, cy1 = r['frame']; rot = cv2.warpAffine(face, M, (face.shape[1], face.shape[0]), flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0))
-                    c = rot[int(max(0, cy0)):int(min(face.shape[0], cy1)), int(max(0, cx0)):int(min(face.shape[1], cx1))]
+                    M, cx0, cy0, cx1, cy1 = r['frame']; lf = cv2.warpAffine(work, M, (work.shape[1], work.shape[0]), flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0))
+                    c = lf[int(max(0, cy0)):int(min(work.shape[0], cy1)), int(max(0, cx0)):int(min(work.shape[1], cx1))]
                     if c.size: fn = f'{vid}__L{i:02d}.jpg'; cv2.imwrite(os.path.join(a.out, 'crops', fn), c, [cv2.IMWRITE_JPEG_QUALITY, 92]); ln['crop'] = f'crops/{fn}'
                 lines.append(ln)
             entry = dict(side_id=vid, width=IW, height=IH, lines=lines)
+            if a.orient == 'auto' and not skipped: entry.update(rotation_deg=rot, orient_gap=round(gap, 3))
             if not whole:
                 entry.update(image=vfile, role=role, source_image=sid, source_file=path, view_box=[x0, y0, x1, y1])
                 if skipped: entry['skipped'] = 'not a tablet view (scale bar, label)' if role == 'other' else 'edge (see --edges)'
             sides.append(entry)
-            summary.append(dict(side_id=vid, view=v['id'], role=role, skipped=bool(skipped), n_lines=len(lines), mean_score=round(float(np.mean([l['score'] for l in lines])), 3) if lines else '',
+            summary.append(dict(side_id=vid, view=v['id'], role=role, skipped=bool(skipped), rotation=rot if a.orient == 'auto' else '', orient_gap=round(gap, 3) if gap is not None else '', n_lines=len(lines), mean_score=round(float(np.mean([l['score'] for l in lines])), 3) if lines else '',
                                 seconds=round(time.time() - t0, 2), notes='; '.join(notes)))
             if a.overlays and k <= a.overlays:
                 vis = (img if whole else face).copy(); lw = max(2, int(max(IW, IH) / 600))
@@ -192,7 +221,7 @@ def main():
                                          'set by hand, and the region rule (--extend, --shift) was calibrated on eBL faces of the line model\'s tune and test '
                                          'splits (docs/line_segmentation/line_model.md, Appendix A.8 and A.9). No other data was used.')),
                   settings=dict(views=a.views, edges=a.edges if a.views == 'auto' else None, background=a.background, clahe=a.clahe, exif=a.exif, long_side=1024, readout=readout, extend=a.extend, shift=a.shift,
-                                end_margin=a.end_margin, max_line_dev=a.max_line_dev),
+                                end_margin=a.end_margin, max_line_dev=a.max_line_dev, orient=a.orient, orient_margin=a.orient_margin if a.orient == 'auto' else None),
                   created=datetime.datetime.now().isoformat(timespec='seconds'), sides=sides)
     json.dump(result, open(os.path.join(a.out, 'lines.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     with open(os.path.join(a.out, 'summary.csv'), 'w', newline='', encoding='utf-8') as fh:
